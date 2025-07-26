@@ -1,4 +1,5 @@
 # add build folder
 build/
+build\
 dist/PDF_Label_Processor
 __pycache__/
