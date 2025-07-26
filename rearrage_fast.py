@@ -6,11 +6,13 @@ from typing import List, Tuple
 sku_map = {
     "TN0001": "OIL",
     "TN0002": "Potli", 
-    "TN003": "Rollon"
+    "TN003": "Rollon",
+    "TS-NLT5-CZ47": "OIL",
+    "84-HNM4-WOND": "Potli",
 }
 
 # Open the original PDF
-input_pdf = "input.pdf"
+input_pdf = "input2.pdf"
 output_pdf = "output_modified.pdf"
 doc = fitz.open(input_pdf)
 
@@ -27,23 +29,46 @@ for i, page in enumerate(doc):
     sku_labels = []
     
     for idx, line in enumerate(lines):
-        sku_match = re.search(r'SKU:\s*(\w+)', line)
-        if sku_match:
+        sku = None
+        qty = 1
+        # Try to match SKU on one line
+        sku_match = re.search(r'SKU:\s*([\w\-]+)', line)
+        # print(f"Processing line {idx + 1}: {line}")  # Debug: print the current line
+        if sku_match and not sku_match.group(1).endswith('-'):
+            print(f"Found SKU on line {idx + 1}: {sku_match.group(1)}")  # Debug: print the found SKU
+            # Extract SKU and normalize it
             sku = sku_match.group(1)
-            qty = 1
-            
             # Try to get the next line for quantity
             if idx + 1 < len(lines):
                 next_line = lines[idx + 1]
                 qty_match = re.search(r'(\d+)', next_line)
                 if qty_match:
                     qty = int(qty_match.group(1))
-            
-            # Add label if qty > 1 OR if SKU is not TN0001
+        # Try to match SKU split across two lines (e.g. 'SKU: TS-NLT5-' and 'CZ47')
+        elif "SKU:" in line:
+            # Remove 'SKU:' and join with next line, then normalize
+            print(f"Found SKU split across lines at page", line)
+            sku_prefix = line.strip().replace("SKU:", "").strip()
+            sku_suffix = lines[idx + 1].strip()
+            # Always ensure dash between prefix and suffix if not present
+            if sku_prefix and sku_suffix and not sku_prefix.endswith("-") and not sku_suffix.startswith("-"):
+                sku_full = sku_prefix + "-" + sku_suffix
+            else:
+                sku_full = sku_prefix + sku_suffix
+            sku_full = sku_full.replace(" ", "")
+            print(f"Full SKU constructed: {sku_full}")  # Debug: print the full SKU
+            sku = sku_full
+            # Quantity will be on the third line
+            if idx + 2 < len(lines):
+                qty_line = lines[idx + 2]
+                qty_match = re.search(r'(\d+)', qty_line)
+                if qty_match:
+                    qty = int(qty_match.group(1))
+        # Add label if we found a SKU and (qty > 1 OR if SKU is not TN0001)
+        if sku:
+            product_name = sku_map.get(sku, "Unknown Product")
+            label_text = f"→ {product_name}x{qty}" if qty > 1 else f"→ {product_name}"
             if qty > 1 or sku != "TN0001":
-                product_name = sku_map.get(sku, "Unknown Product")
-                # Only show quantity if it's greater than 1
-                label_text = f"→ {product_name}x{qty}" if qty > 1 else f"→ {product_name}"
                 sku_labels.append(label_text)
     
     if sku_labels:

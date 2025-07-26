@@ -1,3 +1,0 @@
-([('PDF_Label_Processor',
-   '/Users/muralielumalai/repos/shiprocket-automation/dist/PDF_Label_Processor',
-   'EXECUTABLE')],)
