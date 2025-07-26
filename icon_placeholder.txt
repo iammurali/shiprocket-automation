@@ -1,0 +1,3 @@
+# This is a placeholder for an icon file
+# You can replace this with a proper .ico file
+# Recommended size: 256x256 pixels
