@@ -251,7 +251,7 @@ If you encounter issues:
 - Dependencies: PyMuPDF, tkinter
 '''
     
-    with open('README_Windows.md', 'w') as f:
+    with open('README_Windows.md', 'w', encoding='utf-8') as f:
         f.write(readme_content)
     print("✓ Created Windows README")
 
