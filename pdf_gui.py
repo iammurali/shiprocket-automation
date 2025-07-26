@@ -179,6 +179,8 @@ class PDFProcessorGUI:
             # Lists to store page numbers and their labels
             marked_pages: List[Tuple[int, str]] = []
             unmarked_pages: List[int] = []
+            # Dict to track skipped TN0001 and TS-NLT5-CZ47
+            skipped_special_skus = {"TN0001": [], "TS-NLT5-CZ47": []}
             
             # Process each page
             for i, page in enumerate(doc):
@@ -188,7 +190,6 @@ class PDFProcessorGUI:
                 # Find all SKUs and their quantities
                 lines = text.splitlines()
                 sku_labels = []
-                
                 for idx, line in enumerate(lines):
                     sku = None
                     qty = 1
@@ -202,6 +203,9 @@ class PDFProcessorGUI:
                             qty_match = re.search(r'(\d+)', next_line)
                             if qty_match:
                                 qty = int(qty_match.group(1))
+                        product_name = self.sku_map.get(sku, "Unknown Product")
+                        label_text = f"→ {product_name}x{qty}" if qty > 1 else f"→ {product_name}"
+                        sku_labels.append((sku, label_text))
                     # Try to match SKU split across two lines (e.g. 'SKU: TS-NLT5-' and 'CZ47')
                     elif "SKU:" in line:
                         sku_prefix = line.strip().replace("SKU:", "").strip()
@@ -219,56 +223,96 @@ class PDFProcessorGUI:
                             qty_match = re.search(r'(\d+)', qty_line)
                             if qty_match:
                                 qty = int(qty_match.group(1))
-                    # Add label if we found a SKU and (qty > 1 OR if SKU is not TN0001)
-                    if sku:
                         product_name = self.sku_map.get(sku, "Unknown Product")
                         label_text = f"→ {product_name}x{qty}" if qty > 1 else f"→ {product_name}"
-                        if qty > 1 or sku != "TN0001":
-                            sku_labels.append(label_text)
-                
-                if sku_labels:
-                    # Concatenate all labels
-                    label_text = " | ".join(sku_labels)
-                    # Store the page number and its label
+                        sku_labels.append((sku, label_text))
+
+                # Post-process sku_labels for TN0001 logic
+                final_labels = []
+                skus_on_page = [sku for sku, _ in sku_labels]
+                for idx, (sku, label_text) in enumerate(sku_labels):
+                    if sku == "TN0001":
+                        # Add TN0001 if qty > 1, or if there is another SKU on the page
+                        if "x" in label_text or len(skus_on_page) > 1:
+                            final_labels.append(label_text)
+                        else:
+                            skipped_special_skus["TN0001"].append({"page": i, "qty": 1, "skus_on_page": skus_on_page})
+                    elif sku == "TS-NLT5-CZ47":
+                        # Only add TS-NLT5-CZ47 if qty > 1
+                        if "x" in label_text:
+                            final_labels.append(label_text)
+                        else:
+                            skipped_special_skus["TS-NLT5-CZ47"].append({"page": i, "qty": 1, "skus_on_page": skus_on_page})
+                    else:
+                        final_labels.append(label_text)
+
+                if final_labels:
+                    label_text = " | ".join(final_labels)
                     marked_pages.append((i, label_text))
                     self.log_message(f"Page {i + 1}: Found labels - {label_text}")
                 else:
                     unmarked_pages.append(i)
                     self.log_message(f"Page {i + 1}: No labels found")
+            # Log skipped TN0001 and TS-NLT5-CZ47
+            self.log_message(f"Skipped TN0001 pages: {skipped_special_skus['TN0001']}")
+            self.log_message(f"Skipped TS-NLT5-CZ47 pages: {skipped_special_skus['TS-NLT5-CZ47']}")
             
             self.log_message(f"Found {len(marked_pages)} marked pages and {len(unmarked_pages)} unmarked pages")
-            
+
+            # Group no-SKU page and its following SKU page together at the end
+            marked_dict = dict(marked_pages)
+            grouped_pairs = []
+            used_pages = set()
+            i = 0
+            def is_skipped(page_num):
+                for entry in skipped_special_skus["TN0001"] + skipped_special_skus["TS-NLT5-CZ47"]:
+                    if entry["page"] == page_num:
+                        return True
+                return False
+            while i < len(unmarked_pages):
+                page = unmarked_pages[i]
+                # Only group if neither page nor next page are in skipped_special_skus
+                if (page + 1) in marked_dict and not is_skipped(page) and not is_skipped(page + 1):
+                    # Group no-SKU page and its following SKU page
+                    grouped_pairs.append((page, page + 1))
+                    used_pages.add(page)
+                    used_pages.add(page + 1)
+                    i += 1  # skip next page as it's already grouped
+                i += 1
+            # Collect all marked pages not in grouped pairs
+            remaining_marked = [(i, label_text) for i, label_text in marked_pages if i not in used_pages]
+            # Collect all unmarked pages not in grouped pairs
+            remaining_unmarked = [i for i in unmarked_pages if i not in used_pages]
+
+            # Prepare final page order: unmarked pages at top, then all marked and grouped pairs at the bottom
+            final_page_order = []
+            # Add all remaining unmarked pages first
+            for i in remaining_unmarked:
+                final_page_order.append((i, None))
+            # Add all marked pages and grouped pairs at the bottom
+            marked_and_grouped = []
+            for i, label_text in remaining_marked:
+                marked_and_grouped.append((i, label_text))
+            for no_sku, sku_page in grouped_pairs:
+                marked_and_grouped.append((no_sku, None))
+                marked_and_grouped.append((sku_page, marked_dict[sku_page]))
+            final_page_order.extend(marked_and_grouped)
+
+            # For PDF creation, keep track of all pages in order, and which ones get labels
+            ordered_pages = [i for i, _ in final_page_order]
+            label_dict = {i: label_text for i, label_text in final_page_order if label_text is not None}
+
             # Create a new PDF with reordered pages
             new_doc = fitz.open()
             
-            # Batch copy unmarked pages (more efficient)
-            if unmarked_pages:
-                self.log_message("Copying unmarked pages...")
-                # Group consecutive pages for batch copying
-                page_ranges = []
-                start = unmarked_pages[0]
-                end = start
-                
-                for page_num in unmarked_pages[1:]:
-                    if page_num == end + 1:
-                        end = page_num
-                    else:
-                        page_ranges.append((start, end))
-                        start = end = page_num
-                page_ranges.append((start, end))
-                
-                # Copy pages in batches
-                for start, end in page_ranges:
-                    new_doc.insert_pdf(doc, from_page=start, to_page=end)
-            
-            # Add marked pages at the end with their labels
-            if marked_pages:
-                self.log_message("Adding marked pages with labels...")
-                for page_num, label_text in marked_pages:
-                    new_doc.insert_pdf(doc, from_page=page_num, to_page=page_num)
+            # Copy all pages in the new order, adding labels only to marked pages
+            self.log_message("Copying pages in new grouped order...")
+            for page_num in ordered_pages:
+                new_doc.insert_pdf(doc, from_page=page_num, to_page=page_num)
+                if page_num in label_dict:
                     # Add label to the newly inserted page
                     insert_point = fitz.Point(5, 250)
-                    new_doc[-1].insert_text(insert_point, label_text, 
+                    new_doc[-1].insert_text(insert_point, label_dict[page_num], 
                                            fontname="Courier-Bold", fontsize=12, color=(1, 0, 0))
             
             # Save with minimal optimization for speed
@@ -310,4 +354,4 @@ def main():
     root.mainloop()
 
 if __name__ == "__main__":
-    main() 
+    main()
