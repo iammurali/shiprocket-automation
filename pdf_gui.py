@@ -294,8 +294,10 @@ class PDFProcessorGUI:
                 else:
                     unmarked_pages.append(i)
             self.log_message(f"Found {len(marked_pages)} marked pages and {len(unmarked_pages)} unmarked pages")
-            self.log_message(f"OIL counts: 1x={oil_counts[1]}, 2x={oil_counts[2]}, 3x={oil_counts[3]}, morex={oil_counts['more']}")
-            self.log_message(f"Potli counts: 1x={potli_counts[1]}, 2x={potli_counts[2]}, 3x={potli_counts[3]}, morex={potli_counts['more']}")
+            self.log_message(f"===============Copy this information and keep, add everything at the end=======")
+            self.log_message(f"OIL counts: pack of 1x={oil_counts[1]}, pack of 2x={oil_counts[2]}, pack of 3x={oil_counts[3]}, morex={oil_counts['more']}")
+            self.log_message(f"Potli counts: pack of 1x={potli_counts[1]}, pack of 2x={potli_counts[2]}, pack of 3x={potli_counts[3]}, morex={potli_counts['more']}")
+            self.log_message(f"===============================================================================")
 
             # Group no-SKU page and its following SKU page together at the end
             marked_dict = dict(marked_pages)
@@ -351,7 +353,7 @@ class PDFProcessorGUI:
                     # Add label to the newly inserted page
                     insert_point = fitz.Point(5, 250)
                     new_doc[-1].insert_text(insert_point, label_dict[page_num], 
-                                           fontname="Courier-Bold", fontsize=12, color=(1, 0, 0))
+                                           fontname="Courier-Bold", fontsize=12, color=(0, 0, 0))
             
             # Save with minimal optimization for speed
             self.log_message("Saving output file...")
