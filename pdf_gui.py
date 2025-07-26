@@ -10,7 +10,7 @@ class PDFProcessorGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("PDF Label Processor")
-        self.root.geometry("600x400")
+        self.root.geometry("600x600")
         self.root.resizable(True, True)
         
         # Variables
@@ -104,6 +104,9 @@ class PDFProcessorGUI:
         
         # Clear log button
         ttk.Button(log_frame, text="Clear Log", command=self.clear_log).grid(row=1, column=0, pady=(10, 0))
+        # Open PDF button (initially disabled)
+        self.open_pdf_button = ttk.Button(main_frame, text="Open Converted PDF", command=self.open_converted_pdf, state="disabled")
+        self.open_pdf_button.grid(row=7, column=0, columnspan=3, pady=(10, 0))
         
     def browse_input_file(self):
         filename = filedialog.askopenfilename(
@@ -182,11 +185,13 @@ class PDFProcessorGUI:
             # Dict to track skipped TN0001 and TS-NLT5-CZ47
             skipped_special_skus = {"TN0001": [], "TS-NLT5-CZ47": []}
             
+            # Stats counters
+            oil_counts = {1: 0, 2: 0, 3: 0, 'more': 0}
+            potli_counts = {1: 0, 2: 0, 3: 0, 'more': 0}
+            
             # Process each page
             for i, page in enumerate(doc):
                 text = page.get_text()
-                self.log_message(f"Processing page {i + 1}")
-                
                 # Find all SKUs and their quantities
                 lines = text.splitlines()
                 sku_labels = []
@@ -206,6 +211,25 @@ class PDFProcessorGUI:
                         product_name = self.sku_map.get(sku, "Unknown Product")
                         label_text = f"→ {product_name}x{qty}" if qty > 1 else f"→ {product_name}"
                         sku_labels.append((sku, label_text))
+                        # Count stats for OIL and Potli
+                        if product_name == "OIL":
+                            if qty == 1:
+                                oil_counts[1] += 1
+                            elif qty == 2:
+                                oil_counts[2] += 1
+                            elif qty == 3:
+                                oil_counts[3] += 1
+                            elif qty > 3:
+                                oil_counts['more'] += 1
+                        elif product_name == "Potli":
+                            if qty == 1:
+                                potli_counts[1] += 1
+                            elif qty == 2:
+                                potli_counts[2] += 1
+                            elif qty == 3:
+                                potli_counts[3] += 1
+                            elif qty > 3:
+                                potli_counts['more'] += 1
                     # Try to match SKU split across two lines (e.g. 'SKU: TS-NLT5-' and 'CZ47')
                     elif "SKU:" in line:
                         sku_prefix = line.strip().replace("SKU:", "").strip()
@@ -226,7 +250,25 @@ class PDFProcessorGUI:
                         product_name = self.sku_map.get(sku, "Unknown Product")
                         label_text = f"→ {product_name}x{qty}" if qty > 1 else f"→ {product_name}"
                         sku_labels.append((sku, label_text))
-
+                        # Count stats for OIL and Potli
+                        if product_name == "OIL":
+                            if qty == 1:
+                                oil_counts[1] += 1
+                            elif qty == 2:
+                                oil_counts[2] += 1
+                            elif qty == 3:
+                                oil_counts[3] += 1
+                            elif qty > 3:
+                                oil_counts['more'] += 1
+                        elif product_name == "Potli":
+                            if qty == 1:
+                                potli_counts[1] += 1
+                            elif qty == 2:
+                                potli_counts[2] += 1
+                            elif qty == 3:
+                                potli_counts[3] += 1
+                            elif qty > 3:
+                                potli_counts['more'] += 1
                 # Post-process sku_labels for TN0001 logic
                 final_labels = []
                 skus_on_page = [sku for sku, _ in sku_labels]
@@ -249,15 +291,11 @@ class PDFProcessorGUI:
                 if final_labels:
                     label_text = " | ".join(final_labels)
                     marked_pages.append((i, label_text))
-                    self.log_message(f"Page {i + 1}: Found labels - {label_text}")
                 else:
                     unmarked_pages.append(i)
-                    self.log_message(f"Page {i + 1}: No labels found")
-            # Log skipped TN0001 and TS-NLT5-CZ47
-            self.log_message(f"Skipped TN0001 pages: {skipped_special_skus['TN0001']}")
-            self.log_message(f"Skipped TS-NLT5-CZ47 pages: {skipped_special_skus['TS-NLT5-CZ47']}")
-            
             self.log_message(f"Found {len(marked_pages)} marked pages and {len(unmarked_pages)} unmarked pages")
+            self.log_message(f"OIL counts: 1x={oil_counts[1]}, 2x={oil_counts[2]}, 3x={oil_counts[3]}, morex={oil_counts['more']}")
+            self.log_message(f"Potli counts: 1x={potli_counts[1]}, 2x={potli_counts[2]}, 3x={potli_counts[3]}, morex={potli_counts['more']}")
 
             # Group no-SKU page and its following SKU page together at the end
             marked_dict = dict(marked_pages)
@@ -306,7 +344,7 @@ class PDFProcessorGUI:
             new_doc = fitz.open()
             
             # Copy all pages in the new order, adding labels only to marked pages
-            self.log_message("Copying pages in new grouped order...")
+            self.log_message("Copying pages in new grouped order...Please Wait.. this will take some time")
             for page_num in ordered_pages:
                 new_doc.insert_pdf(doc, from_page=page_num, to_page=page_num)
                 if page_num in label_dict:
@@ -340,13 +378,24 @@ class PDFProcessorGUI:
         self.processing = False
         self.process_button.config(state="normal")
         self.progress.stop()
-        
         if success:
             self.update_status("Processing completed successfully!")
             messagebox.showinfo("Success", f"PDF processed successfully!\nOutput saved to:\n{self.output_file_path.get()}")
+            self.open_pdf_button.config(state="normal")
         else:
             self.update_status("Processing failed")
             messagebox.showerror("Error", message)
+            self.open_pdf_button.config(state="disabled")
+            
+    def open_converted_pdf(self):
+        output_path = self.output_file_path.get()
+        if output_path and os.path.exists(output_path):
+            try:
+                os.startfile(output_path)
+            except Exception as e:
+                messagebox.showerror("Error", f"Could not open PDF: {e}")
+        else:
+            messagebox.showerror("Error", "Converted PDF not found.")
 
 def main():
     root = tk.Tk()
