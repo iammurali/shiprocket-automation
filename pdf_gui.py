@@ -21,10 +21,10 @@ class PDFProcessorGUI:
         # SKU to product name mapping
         self.sku_map = {
             "TN0001": "OIL",
-            "TN0002": "Potli", 
-            "TN003": "Rollon",
             "TS-NLT5-CZ47": "OIL",
+            "TN0002": "Potli", 
             "84-HNM4-WOND": "Potli",
+            "TN003": "Rollon",
         }
         
         self.setup_ui()
@@ -40,7 +40,7 @@ class PDFProcessorGUI:
         main_frame.columnconfigure(1, weight=1)
         
         # Title
-        title_label = ttk.Label(main_frame, text="PDF Label Processor", 
+        title_label = ttk.Label(main_frame, text="Shiprocket Label Processor", 
                                font=("Arial", 16, "bold"))
         title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
         
@@ -71,7 +71,10 @@ class PDFProcessorGUI:
         # Process button
         self.process_button = ttk.Button(main_frame, text="Process PDF", 
                                         command=self.process_pdf, style="Accent.TButton")
-        self.process_button.grid(row=3, column=0, columnspan=3, pady=20)
+        self.process_button.grid(row=3, column=0, columnspan=2, pady=20, sticky=(tk.W, tk.E))
+        # Open PDF button (initially disabled, now next to process button)
+        self.open_pdf_button = ttk.Button(main_frame, text="PRINT Converted PDF", command=self.open_converted_pdf, state="disabled")
+        self.open_pdf_button.grid(row=3, column=2, pady=20, sticky=(tk.W, tk.E))
         
         # Progress bar
         self.progress = ttk.Progressbar(main_frame, mode='indeterminate')
@@ -104,9 +107,6 @@ class PDFProcessorGUI:
         
         # Clear log button
         ttk.Button(log_frame, text="Clear Log", command=self.clear_log).grid(row=1, column=0, pady=(10, 0))
-        # Open PDF button (initially disabled)
-        self.open_pdf_button = ttk.Button(main_frame, text="Open Converted PDF", command=self.open_converted_pdf, state="disabled")
-        self.open_pdf_button.grid(row=7, column=0, columnspan=3, pady=(10, 0))
         
     def browse_input_file(self):
         filename = filedialog.askopenfilename(
@@ -189,20 +189,38 @@ class PDFProcessorGUI:
             oil_counts = {1: 0, 2: 0, 3: 0, 'more': 0}
             potli_counts = {1: 0, 2: 0, 3: 0, 'more': 0}
             
+            def count_product(product_name, qty):
+                if product_name == "OIL":
+                    if qty == 1:
+                        oil_counts[1] += 1
+                    elif qty == 2:
+                        oil_counts[2] += 1
+                    elif qty == 3:
+                        oil_counts[3] += 1
+                    elif qty > 3:
+                        oil_counts['more'] += 1
+                elif product_name == "Potli":
+                    if qty == 1:
+                        potli_counts[1] += 1
+                    elif qty == 2:
+                        potli_counts[2] += 1
+                    elif qty == 3:
+                        potli_counts[3] += 1
+                    elif qty > 3:
+                        potli_counts['more'] += 1
             # Process each page
             for i, page in enumerate(doc):
                 text = page.get_text()
-                # Find all SKUs and their quantities
                 lines = text.splitlines()
                 sku_labels = []
-                for idx, line in enumerate(lines):
+                idx = 0
+                while idx < len(lines):
+                    line = lines[idx]
                     sku = None
                     qty = 1
-                    # Try to match SKU on one line
                     sku_match = re.search(r'SKU:\s*([\w\-]+)', line)
                     if sku_match and not sku_match.group(1).endswith('-'):
                         sku = sku_match.group(1)
-                        # Try to get the next line for quantity
                         if idx + 1 < len(lines):
                             next_line = lines[idx + 1]
                             qty_match = re.search(r'(\d+)', next_line)
@@ -211,37 +229,18 @@ class PDFProcessorGUI:
                         product_name = self.sku_map.get(sku, "Unknown Product")
                         label_text = f"→ {product_name}x{qty}" if qty > 1 else f"→ {product_name}"
                         sku_labels.append((sku, label_text))
-                        # Count stats for OIL and Potli
-                        if product_name == "OIL":
-                            if qty == 1:
-                                oil_counts[1] += 1
-                            elif qty == 2:
-                                oil_counts[2] += 1
-                            elif qty == 3:
-                                oil_counts[3] += 1
-                            elif qty > 3:
-                                oil_counts['more'] += 1
-                        elif product_name == "Potli":
-                            if qty == 1:
-                                potli_counts[1] += 1
-                            elif qty == 2:
-                                potli_counts[2] += 1
-                            elif qty == 3:
-                                potli_counts[3] += 1
-                            elif qty > 3:
-                                potli_counts['more'] += 1
-                    # Try to match SKU split across two lines (e.g. 'SKU: TS-NLT5-' and 'CZ47')
-                    elif "SKU:" in line:
+                        count_product(product_name, qty)
+                        idx += 1
+                        continue
+                    elif "SKU:" in line and idx + 1 < len(lines):
                         sku_prefix = line.strip().replace("SKU:", "").strip()
                         sku_suffix = lines[idx + 1].strip()
-                        # Always ensure dash between prefix and suffix if not present
                         if sku_prefix and sku_suffix and not sku_prefix.endswith("-") and not sku_suffix.startswith("-"):
                             sku_full = sku_prefix + "-" + sku_suffix
                         else:
                             sku_full = sku_prefix + sku_suffix
                         sku_full = sku_full.replace(" ", "")
                         sku = sku_full
-                        # Quantity will be on the third line
                         if idx + 2 < len(lines):
                             qty_line = lines[idx + 2]
                             qty_match = re.search(r'(\d+)', qty_line)
@@ -250,44 +249,51 @@ class PDFProcessorGUI:
                         product_name = self.sku_map.get(sku, "Unknown Product")
                         label_text = f"→ {product_name}x{qty}" if qty > 1 else f"→ {product_name}"
                         sku_labels.append((sku, label_text))
-                        # Count stats for OIL and Potli
-                        if product_name == "OIL":
-                            if qty == 1:
-                                oil_counts[1] += 1
-                            elif qty == 2:
-                                oil_counts[2] += 1
-                            elif qty == 3:
-                                oil_counts[3] += 1
-                            elif qty > 3:
-                                oil_counts['more'] += 1
-                        elif product_name == "Potli":
-                            if qty == 1:
-                                potli_counts[1] += 1
-                            elif qty == 2:
-                                potli_counts[2] += 1
-                            elif qty == 3:
-                                potli_counts[3] += 1
-                            elif qty > 3:
-                                potli_counts['more'] += 1
+                        count_product(product_name, qty)
+                        idx += 2
+                        continue
+                    idx += 1
                 # Post-process sku_labels for TN0001 logic
                 final_labels = []
                 skus_on_page = [sku for sku, _ in sku_labels]
-                for idx, (sku, label_text) in enumerate(sku_labels):
+                for idx2, (sku, label_text) in enumerate(sku_labels):
                     if sku == "TN0001":
-                        # Add TN0001 if qty > 1, or if there is another SKU on the page
                         if "x" in label_text or len(skus_on_page) > 1:
                             final_labels.append(label_text)
                         else:
                             skipped_special_skus["TN0001"].append({"page": i, "qty": 1, "skus_on_page": skus_on_page})
                     elif sku == "TS-NLT5-CZ47":
-                        # Only add TS-NLT5-CZ47 if qty > 1
                         if "x" in label_text:
                             final_labels.append(label_text)
                         else:
                             skipped_special_skus["TS-NLT5-CZ47"].append({"page": i, "qty": 1, "skus_on_page": skus_on_page})
                     else:
                         final_labels.append(label_text)
-
+                # Sort final_labels by custom priority
+                def label_priority(label):
+                    # Normalize label for matching
+                    l = label.replace('→ ', '').replace(' ', '').upper()
+                    if l.startswith('OILX2'):
+                        return 1
+                    elif l.startswith('OILX3'):
+                        return 2
+                    elif l.startswith('OILX') and l[4:].isdigit() and int(l[4:]) >= 4:
+                        return 3
+                    elif l == 'POTLI':
+                        return 4
+                    elif l.startswith('POTLIX2'):
+                        return 5
+                    elif l.startswith('POTLIX3'):
+                        return 6
+                    elif l == 'ROLLON':
+                        return 7
+                    elif l.startswith('ROLLONX2'):
+                        return 8
+                    elif l.startswith('ROLLONX') and l[7:].isdigit() and int(l[7:]) >= 3:
+                        return 9
+                    else:
+                        return 10
+                final_labels.sort(key=label_priority)
                 if final_labels:
                     label_text = " | ".join(final_labels)
                     marked_pages.append((i, label_text))
