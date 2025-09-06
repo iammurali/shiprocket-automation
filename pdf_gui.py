@@ -497,7 +497,7 @@ class WindowsStylePDFProcessor:
                         "page": page_num, "qty": 1, "skus_on_page": skus_on_page
                     })
             elif sku == "TS-NLT5-CZ47":
-                if "x" in label_text:
+                if "x" in label_text or len(skus_on_page) > 1:
                     final_labels.append(label_text)
                 else:
                     skipped_special_skus["TS-NLT5-CZ47"].append({
