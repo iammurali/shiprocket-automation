@@ -20,6 +20,8 @@ class WindowsStylePDFProcessor:
         # Variables
         self.input_file_path = tk.StringVar()
         self.output_file_path = tk.StringVar()
+        # Toggle for 4x4 label (crop bottom 50mm)
+        self.is_4x4_var = tk.BooleanVar(value=False)
         self.processing = False
         self.current_page = tk.StringVar(value="0")
         self.total_pages = tk.StringVar(value="0")
@@ -159,7 +161,11 @@ class WindowsStylePDFProcessor:
         """Create control buttons section"""
         controls_frame = tk.Frame(parent, bg=self.colors['bg_primary'])
         controls_frame.pack(fill='x', pady=(0, 15))
-        
+        # Toggle for 4x4 labels (crop bottom 50mm)
+        self.label_toggle = ttk.Checkbutton(controls_frame, text="4X4 label",
+                                            variable=self.is_4x4_var)
+        self.label_toggle.pack(side='left', padx=(0, 10))
+
         # Primary action button
         self.process_button = ttk.Button(controls_frame, text="Process PDF", 
                                         command=self.process_pdf,
@@ -401,7 +407,7 @@ class WindowsStylePDFProcessor:
         self.clear_statistics()
         
         thread = threading.Thread(target=self._process_pdf_thread, 
-                                args=(input_path, output_path))
+                                args=(input_path, output_path, self.is_4x4_var.get()))
         thread.daemon = True
         thread.start()
     
@@ -601,7 +607,7 @@ class WindowsStylePDFProcessor:
         
         return final_order
         
-    def _process_pdf_thread(self, input_path, output_path):
+    def _process_pdf_thread(self, input_path, output_path, crop_bottom_enabled=False):
         try:
             self.log_message("Starting PDF processing...")
             
@@ -679,7 +685,15 @@ class WindowsStylePDFProcessor:
                 
                 for page_num in batch_pages:
                     new_doc.insert_pdf(doc, from_page=page_num, to_page=page_num)
-                    
+                    # If cropping of bottom part is enabled (4x4 label), crop the newly
+                    # inserted page by removing 50mm from the bottom. This sets the
+                    # page's cropbox which is fast and avoids re-writing content.
+                    if crop_bottom_enabled:
+                        try:
+                            self.crop_page_remove_bottom(new_doc[-1], remove_mm=50.0)
+                        except Exception as e:
+                            self.log_message(f"Warning: failed to crop page {page_num}: {e}")
+
                     if page_num in label_dict:
                         insert_point = fitz.Point(5, 250)
                         new_doc[-1].insert_text(insert_point, label_dict[page_num], 
@@ -733,6 +747,23 @@ class WindowsStylePDFProcessor:
             error_msg = "Converted PDF not found."
             messagebox.showerror("Error", error_msg)
             self.log_message(error_msg)
+
+    def crop_page_remove_bottom(self, page: fitz.Page, remove_mm: float = 50.0) -> bool:
+        """Crop the given page by removing `remove_mm` millimeters from the bottom.
+
+        Returns True if cropping was applied, False if the page is too small.
+        This method sets the page cropbox (fast) and does not rasterize content.
+        """
+        mm_to_pt = 72.0 / 25.4
+        remove_pt = remove_mm * mm_to_pt
+        rect = page.rect
+        # Ensure the page is larger than the removal amount
+        if rect.height <= remove_pt + 0.1:
+            return False
+
+        new_rect = fitz.Rect(rect.x0, rect.y0, rect.x1, rect.y1 - remove_pt)
+        page.set_cropbox(new_rect)
+        return True
 
 def main():
     root = tk.Tk()
