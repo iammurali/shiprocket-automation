@@ -4,3 +4,4 @@ pymupdf-fonts==1.0.5
 
 # Build dependencies (for creating Windows executable)
 pyinstaller==6.10.0
+requests==2.32.5

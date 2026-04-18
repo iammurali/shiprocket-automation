@@ -41,7 +41,7 @@ a = Analysis(
     ['pdf_gui.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('Logo.png', '.')],
     hiddenimports=[
         'tkinter',
         'tkinter.ttk',

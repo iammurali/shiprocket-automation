@@ -24,3 +24,16 @@ build/PDF_Label_Processor/xref-PDF_Label_Processor.html
 build\PDF_Label_Processor\xref-PDF_Label_Processor.html
 dist/PDF_Label_Processor
 dist\PDF_Label_Processor
+notes.md
+dist/
+dist\
+
+# Secrets and configs
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+token.json
+secrets.json
+config.json
