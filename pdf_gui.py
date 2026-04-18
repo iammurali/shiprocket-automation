@@ -41,6 +41,8 @@ class WindowsStylePDFProcessor:
             "TN0002": "Potli", 
             "84-HNM4-WOND": "Potli",
             "TN003": "Rollon",
+            "43522344878158": "Varico",
+            "TN0005": "Varico"
         }
         
         # Pre-compile regex patterns for better performance
