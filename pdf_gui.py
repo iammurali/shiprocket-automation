@@ -520,6 +520,7 @@ class WindowsStylePDFProcessor:
         st_products = {
             r'(?i)tulir\s+naturals\s+oil\s+100ml': ('Oil', 'Tulir Naturals Oil 100ml'),
             r'(?i)tulir\s+naturals\s*-?\s*massager\s+potli': ('Potli', 'Tulir Naturals - Massager Potli'),
+            r'(?i)tulir\s+naturals\s*-?\s*varico\s+oil': ('Varico', 'Tulir Naturals - Varico Oil'),
         }
         
         lines = text.splitlines()
@@ -562,7 +563,14 @@ class WindowsStylePDFProcessor:
                                 qty = int(qty_str)
                     
                     # Family mapping
-                    family_code = 0 if family == 'Oil' else 1
+                    if family == 'Oil':
+                        family_code = 0
+                    elif family == 'Potli':
+                        family_code = 1
+                    elif family == 'Varico':
+                        family_code = 2
+                    else:
+                        family_code = 3
                     
                     # Deduplicate
                     product_key = (family_code, qty, product_name)
@@ -614,7 +622,7 @@ class WindowsStylePDFProcessor:
             # Show each product with family and qty
             product_details = []
             for p in products:
-                family_name = "Oil" if p[0] == 0 else "Potli" if p[0] == 1 else "Other"
+                family_name = {0: "Oil", 1: "Potli", 2: "Varico"}.get(p[0], "Other")
                 product_details.append(f"{family_name} qty {p[1]}")
             details_str = " | ".join(product_details)
             self.st_log_message(f"  {idx}. Page {page_num + 1}: {details_str}")
