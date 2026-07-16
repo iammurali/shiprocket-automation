@@ -23,6 +23,21 @@ def check_dependencies():
     
     return missing_packages
 
+def check_macos_tk():
+    """Check for macOS Tk 8.5 which has known blank-window bugs."""
+    if sys.platform != 'darwin':
+        return
+    try:
+        import tkinter
+        if tkinter.TkVersion < 8.6:
+            print("WARNING: You are using Tk {} which has known issues on macOS.".format(tkinter.TkVersion))
+            print("The GUI may appear blank. To fix this, install Python from")
+            print("  https://www.python.org/downloads/  (bundles Tk 8.6)")
+            print("Or via Homebrew:  brew install python-tk")
+            print()
+    except Exception:
+        pass
+
 def install_dependencies():
     """Install missing dependencies."""
     print("Installing missing dependencies...")
@@ -54,6 +69,9 @@ def main():
         else:
             print("Please install the required dependencies before running the GUI.")
             return
+    
+    # Check for macOS Tk issues
+    check_macos_tk()
     
     # Import and run the GUI
     try:

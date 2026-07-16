@@ -28,6 +28,9 @@ notes.md
 dist/
 dist\
 
+venv/
+venv\
+
 # Secrets and configs
 .env
 .env.*

@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, font as tkfont
 import fitz  # PyMuPDF
 import re
 import os
@@ -11,6 +11,8 @@ from collections import defaultdict
 import datetime
 import random
 import webbrowser
+import platform
+import subprocess
 
 class WindowsStylePDFProcessor:
     def __init__(self, root):
@@ -71,18 +73,19 @@ class WindowsStylePDFProcessor:
         with open(self.config_file, 'w') as f:
             json.dump(self.shiprocket_config, f)
 
+    def _open_file(self, path):
+        try:
+            if platform.system() == "Darwin":
+                subprocess.run(["open", path], check=False)
+            elif platform.system() == "Windows":
+                os.startfile(path)
+            else:
+                subprocess.run(["xdg-open", path], check=False)
+        except Exception:
+            webbrowser.open(f"file://{os.path.abspath(path)}")
+
     def setup_windows_theme(self):
-        """Configure Windows-native theme"""
-        style = ttk.Style()
-        
-        # Use native Windows theme
-        available_themes = style.theme_names()
-        if 'vista' in available_themes:
-            style.theme_use('vista')
-        else:
-            style.theme_use('clam')
-        
-        # Windows colors
+        """Configure theme"""
         self.colors = {
             'bg_primary': '#f0f0f0',
             'bg_secondary': '#ffffff',
@@ -90,14 +93,24 @@ class WindowsStylePDFProcessor:
             'text_secondary': '#666666',
             'accent': '#0078d4'
         }
-        
-        # Configure root window
+
+        self.fonts = {
+            'heading': ('Helvetica', 18, 'bold'),
+            'label': ('Helvetica', 9, 'bold'),
+            'normal': ('Helvetica', 9),
+            'small': ('Helvetica', 8),
+            'mono': ('Courier New', 9),
+            'text': ('Helvetica', 9),
+            'log': ('Courier New', 8),
+        }
+
         self.root.configure(bg=self.colors['bg_primary'])
 
     def setup_ui(self):
         # Create Notebook
         self.notebook = ttk.Notebook(self.root)
-        self.notebook.pack(fill='both', expand=True, padx=10, pady=10)
+        self.notebook.bind('<<NotebookTabChanged>>', lambda e: self.root.update_idletasks())
+        self.notebook.pack(fill='both', expand=True)
 
         # Tab 1: Label Processor (Existing)
         self.processor_tab = tk.Frame(self.notebook, bg=self.colors['bg_primary'])
@@ -138,6 +151,17 @@ class WindowsStylePDFProcessor:
         self.notebook.add(self.st_courier_tab, text='ST COURIER LABELS')
 
         self.setup_st_courier_ui(self.st_courier_tab)
+
+        # Tab 4: Delhivery Direct (duplicate features of first tab, reuses processing)
+        self.delhivery_tab = tk.Frame(self.notebook, bg=self.colors['bg_primary'])
+        self.notebook.add(self.delhivery_tab, text='delhivery direct')
+
+        # Delhivery-specific variables (keeps UI separate but reuses processing logic)
+        self.dd_input_file_path = tk.StringVar()
+        self.dd_output_file_path = tk.StringVar()
+        self.dd_is_4x4_var = tk.BooleanVar(value=False)
+
+        self.setup_delhivery_ui(self.delhivery_tab)
 
     def setup_courier_ui(self, parent):
         """Create UI for Courier PDF Generator"""
@@ -345,7 +369,7 @@ class WindowsStylePDFProcessor:
         scrollbar.pack(side='right', fill='y')
         
         self.st_log_text = tk.Text(log_frame, 
-                                  font=('Courier New', 9),
+                                  font=self.fonts['mono'],
                                   state='disabled',
                                   yscrollcommand=scrollbar.set,
                                   height=8)
@@ -361,7 +385,342 @@ class WindowsStylePDFProcessor:
             self.st_input_file_path.set(file_path)
             base_name = os.path.splitext(os.path.basename(file_path))[0]
             self.st_output_file_path.set(f"{base_name}_ST_processed.pdf")
-    
+
+    # ---- Delhivery Direct Tab UI and handlers ----
+    def setup_delhivery_ui(self, parent):
+        """Create UI for Delhivery Direct tab. This UI is separate but reuses
+        the main processing functions by copying values into the primary
+        processor before invoking processing. This avoids duplicating heavy
+        processing logic while providing the same UX in a separate tab."""
+        # Main container
+        main_frame = tk.Frame(parent, bg=self.colors['bg_primary'])
+        main_frame.pack(fill='both', expand=True, padx=20, pady=15)
+
+        # Title
+        title_frame = tk.Frame(main_frame, bg=self.colors['bg_primary'])
+        title_frame.pack(fill='x', pady=(0, 20))
+        title_label = tk.Label(title_frame,
+                              text="Delhivery Direct - Label Processor",
+                              font=('Segoe UI', 18, 'bold'),
+                              bg=self.colors['bg_primary'],
+                              fg=self.colors['text_primary'])
+        title_label.pack(anchor='w')
+
+        # File selection section (uses separate dd vars)
+        file_frame = ttk.LabelFrame(main_frame, text="File Selection", padding="15")
+        file_frame.pack(fill='x', pady=(0, 15))
+
+        # Input file row
+        input_frame = tk.Frame(file_frame)
+        input_frame.pack(fill='x', pady=(0, 10))
+
+        tk.Label(input_frame, text="Input PDF:", 
+                font=('Segoe UI', 9, 'bold')).pack(anchor='w')
+
+        input_entry_frame = tk.Frame(input_frame)
+        input_entry_frame.pack(fill='x', pady=(5, 0))
+
+        self.dd_input_entry = ttk.Entry(input_entry_frame, 
+                                       textvariable=self.dd_input_file_path,
+                                       font=('Segoe UI', 9),
+                                       state='readonly')
+        self.dd_input_entry.pack(side='left', fill='x', expand=True, padx=(0, 10))
+
+        ttk.Button(input_entry_frame, text="Browse...", 
+                  command=self.browse_dd_input_file).pack(side='right')
+
+        # Output file row
+        output_frame = tk.Frame(file_frame)
+        output_frame.pack(fill='x')
+
+        tk.Label(output_frame, text="Output PDF:", 
+                font=('Segoe UI', 9, 'bold')).pack(anchor='w')
+
+        output_entry_frame = tk.Frame(output_frame)
+        output_entry_frame.pack(fill='x', pady=(5, 0))
+
+        self.dd_output_entry = ttk.Entry(output_entry_frame, 
+                                        textvariable=self.dd_output_file_path,
+                                        font=('Segoe UI', 9),
+                                        state='readonly')
+        self.dd_output_entry.pack(side='left', fill='x', expand=True, padx=(0, 10))
+
+        ttk.Button(output_entry_frame, text="Browse...", 
+                  command=self.browse_dd_output_file).pack(side='right')
+
+        # Controls
+        controls_frame = tk.Frame(main_frame, bg=self.colors['bg_primary'])
+        controls_frame.pack(fill='x', pady=(0, 15))
+
+        # 4x4 toggle separate for delhivery
+        self.dd_label_toggle = ttk.Checkbutton(controls_frame, text="4X4 label",
+                                               variable=self.dd_is_4x4_var)
+        self.dd_label_toggle.pack(side='left', padx=(0, 10))
+
+        # Action buttons
+        self.dd_process_button = ttk.Button(controls_frame, text="Process PDF", 
+                                           command=self.dd_process_pdf,
+                                           width=50)
+        self.dd_process_button.pack(side='left')
+
+        self.dd_open_pdf_button = ttk.Button(controls_frame, text="Print PDF", 
+                                            command=self.dd_open_converted_pdf,
+                                            state='disabled',
+                                            width=15)
+        self.dd_open_pdf_button.pack(side='left', padx=(10, 0))
+
+        ttk.Button(controls_frame, text="Clear All", 
+                  command=self.dd_clear_all,
+                  width=10).pack(side='left', padx=(10, 0))
+
+        # Progress / Log / Stats: reuse main tab widgets to avoid duplication
+        # Provide a short hint so users know logs are shared
+        hint = tk.Label(main_frame, text="Processing uses shared engine; logs/status appear in primary tab.",
+                        font=('Segoe UI', 9), fg=self.colors['text_secondary'], bg=self.colors['bg_primary'])
+        hint.pack(fill='x', pady=(10, 0))
+
+    def browse_dd_input_file(self):
+        file_path = filedialog.askopenfilename(
+            title="Select Input PDF File",
+            filetypes=[("PDF files", "*.pdf"), ("All files", "*.*")]
+        )
+        if file_path:
+            self.dd_input_file_path.set(file_path)
+            base_name = os.path.splitext(os.path.basename(file_path))[0]
+            self.dd_output_file_path.set(f"{base_name}_delhivery_processed.pdf")
+
+    def browse_dd_output_file(self):
+        file_path = filedialog.asksaveasfilename(
+            title="Save Processed PDF",
+            defaultextension=".pdf",
+            filetypes=[("PDF files", "*.pdf"), ("All files", "*.*")]
+        )
+        if file_path:
+            self.dd_output_file_path.set(file_path)
+
+    def dd_clear_all(self):
+        self.dd_input_file_path.set("")
+        self.dd_output_file_path.set("")
+        self.dd_is_4x4_var.set(False)
+        self.dd_open_pdf_button.config(state='disabled')
+
+    def dd_process_pdf(self):
+        """Process a Delhivery Direct label PDF.
+
+        Delhivery Direct labels don't carry a 'SKU:' field like the Shiprocket
+        labels the first tab was built for - instead each page has a
+        'Product Name / Qty. / Total' table with plain-text product names.
+        This runs a dedicated extraction for that table format and then feeds
+        the results through the same sorting/grouping logic as the first tab
+        so pages get rearranged the same way.
+        """
+        if self.processing:
+            return
+
+        input_path = self.dd_input_file_path.get()
+        output_path = self.dd_output_file_path.get()
+
+        if not input_path:
+            messagebox.showerror("Error", "Please select an input PDF file for Delhivery.")
+            return
+
+        if not output_path:
+            messagebox.showerror("Error", "Please select an output PDF file for Delhivery.")
+            return
+
+        if not os.path.exists(input_path):
+            messagebox.showerror("Error", "Input file does not exist.")
+            return
+
+        self.processing = True
+        self.dd_process_button.config(state="disabled", text="Processing...")
+        self.progress_bar.start()
+        self.update_status("Processing started...")
+        self.clear_log()
+        self.clear_statistics()
+
+        thread = threading.Thread(target=self._dd_process_pdf_thread,
+                                 args=(input_path, output_path, self.dd_is_4x4_var.get()))
+        thread.daemon = True
+        thread.start()
+
+    def categorize_dd_product_name(self, name: str) -> str:
+        """Map a Delhivery Direct free-text product name to a product category."""
+        name_lower = name.lower()
+        if 'varico' in name_lower:
+            return 'Varico'
+        if 'rollon' in name_lower or 'roll on' in name_lower:
+            return 'Rollon'
+        if 'potli' in name_lower:
+            return 'Potli'
+        if 'oil' in name_lower:
+            return 'OIL'
+        return 'Unknown Product'
+
+    def extract_dd_items_from_page(self, lines: List[str]) -> List[Tuple[str, int]]:
+        """Extract (category, qty) pairs from a Delhivery Direct label page.
+
+        These labels use a 'Product Name / Qty. / Total' table - find that
+        header, then walk the repeating (name, qty, total) rows that follow
+        until the 'Return Address' footer line.
+        """
+        try:
+            header_idx = lines.index('Product Name')
+        except ValueError:
+            return []
+
+        items = []
+        i = header_idx + 3  # skip 'Product Name', 'Qty.', 'Total' header row
+        n = len(lines)
+        while i + 1 < n and not lines[i].startswith('Return Address'):
+            name, qty_line = lines[i], lines[i + 1]
+            qty_match = self.qty_pattern.search(qty_line)
+            qty = int(qty_match.group(1)) if qty_match else 1
+            items.append((self.categorize_dd_product_name(name), qty))
+            i += 3
+
+        return items
+
+    def count_dd_products(self, items: List[Tuple[str, int]]) -> Tuple[Dict, Dict]:
+        """Delhivery equivalent of count_products - category is already known,
+        so there's no SKU lookup step."""
+        oil_counts = defaultdict(int)
+        potli_counts = defaultdict(int)
+
+        for category, qty in items:
+            bucket = qty if qty <= 3 else 'more'
+            if category == 'OIL':
+                oil_counts[bucket] += 1
+            elif category == 'Potli':
+                potli_counts[bucket] += 1
+
+        return dict(oil_counts), dict(potli_counts)
+
+    def _dd_process_pdf_thread(self, input_path, output_path, crop_bottom_enabled=False):
+        try:
+            self.log_message("Starting Delhivery Direct PDF processing...")
+
+            doc = fitz.open(input_path)
+            total_pages = len(doc)
+            self.total_pages.set(str(total_pages))
+            self.log_message(f"Opened PDF with {total_pages} pages")
+
+            marked_pages = []
+            unmarked_pages = []
+            total_oil_counts = defaultdict(int)
+            total_potli_counts = defaultdict(int)
+
+            self.log_message("Processing pages...")
+
+            for i, page in enumerate(doc):
+                self.current_page.set(str(i + 1))
+                if i % 25 == 0 or i == total_pages - 1:
+                    self.root.after(0, self.update_progress_detail, i + 1, total_pages)
+                    self.log_message(f"Processing page {i+1}/{total_pages}")
+
+                lines = [l.strip() for l in page.get_text().splitlines() if l.strip()]
+                items = self.extract_dd_items_from_page(lines)
+
+                if not items:
+                    unmarked_pages.append(i)
+                    continue
+
+                oil_counts, potli_counts = self.count_dd_products(items)
+                for k, v in oil_counts.items():
+                    total_oil_counts[k] += v
+                for k, v in potli_counts.items():
+                    total_potli_counts[k] += v
+
+                labels = [f"→ {cat}x{qty}" if qty > 1 else f"→ {cat}" for cat, qty in items]
+                label_text = " | ".join(self.sort_labels_optimized(labels))
+                marked_pages.append((i, label_text))
+
+            self.log_message(f"Found {len(marked_pages)} marked pages and {len(unmarked_pages)} unmarked pages")
+            self.log_message(f"Oil counts: {dict(total_oil_counts)}")
+            self.log_message(f"Potli counts: {dict(total_potli_counts)}")
+
+            self.root.after(0, self.display_statistics, dict(total_oil_counts),
+                          dict(total_potli_counts), marked_pages, unmarked_pages)
+
+            self.log_message("Grouping and ordering pages...")
+            final_page_order = self.group_pages_optimized(marked_pages, unmarked_pages, {})
+
+            self.log_message("Creating new PDF with reordered pages...")
+            new_doc = fitz.open()
+
+            ordered_pages = [i for i, _ in final_page_order]
+            label_dict = {i: label for i, label in final_page_order if label is not None}
+
+            batch_size = 50
+            total_batches = (len(ordered_pages) - 1) // batch_size + 1
+
+            for batch_num, batch_start in enumerate(range(0, len(ordered_pages), batch_size)):
+                batch_end = min(batch_start + batch_size, len(ordered_pages))
+                batch_pages = ordered_pages[batch_start:batch_end]
+
+                self.log_message(f"Processing batch {batch_num + 1}/{total_batches}")
+
+                for page_num in batch_pages:
+                    new_doc.insert_pdf(doc, from_page=page_num, to_page=page_num)
+                    if crop_bottom_enabled:
+                        try:
+                            self.crop_page_remove_bottom(new_doc[-1], remove_mm=50.0)
+                        except Exception as e:
+                            self.log_message(f"Warning: failed to crop page {page_num}: {e}")
+
+                    if page_num in label_dict:
+                        new_page = new_doc[-1]
+                        # Empty white-space band on Delhivery Direct labels sits
+                        # between the product table and the return-address
+                        # footer (roughly y=265-380 on an A6 page) - safe to
+                        # write into without overlapping existing text.
+                        # Base14 fonts don't support the U+2192 arrow glyph (renders
+                        # as a garbled dot), so swap in a plain ASCII arrow.
+                        display_text = label_dict[page_num].replace('→', '>')
+                        new_page.insert_text(fitz.Point(20, 300), display_text,
+                                              fontname="Courier-Bold", fontsize=14, color=(0, 0, 0))
+
+            self.log_message("Saving output file...")
+            new_doc.save(output_path,
+                         deflate=False,
+                         garbage=1,
+                         clean=True)
+
+            self.log_message(f"Successfully saved to: {os.path.basename(output_path)}")
+
+            doc.close()
+            new_doc.close()
+
+            self.root.after(0, self._dd_processing_complete, True, "Processing completed successfully!", output_path)
+
+        except Exception as e:
+            error_msg = f"Error during processing: {str(e)}"
+            self.log_message(error_msg)
+            self.root.after(0, self._dd_processing_complete, False, error_msg, output_path)
+
+    def _dd_processing_complete(self, success, message, output_path):
+        self.processing = False
+        self.dd_process_button.config(state="normal", text="Process PDF")
+        self.progress_bar.stop()
+        self.progress_detail_label.config(text="")
+
+        if success:
+            self.update_status("Processing completed successfully!")
+            messagebox.showinfo("Success", f"PDF processed successfully!\n\nOutput saved to:\n{output_path}")
+            self.dd_open_pdf_button.config(state="normal")
+            self.log_message("Ready for next processing task")
+        else:
+            self.update_status("Processing failed")
+            messagebox.showerror("Error", message)
+            self.dd_open_pdf_button.config(state="disabled")
+
+    def dd_open_converted_pdf(self):
+        output_path = self.dd_output_file_path.get()
+        if output_path and os.path.exists(output_path):
+            self._open_file(output_path)
+        else:
+            messagebox.showerror("Error", "Converted PDF not found for Delhivery.")
+
     def browse_st_output_file(self):
         file_path = filedialog.asksaveasfilename(
             title="Save Processed PDF",
@@ -489,13 +848,8 @@ class WindowsStylePDFProcessor:
     def open_st_converted_pdf(self):
         output_path = self.st_output_file_path.get()
         if output_path and os.path.exists(output_path):
-            try:
-                self.st_log_message("Opening converted PDF...")
-                os.startfile(output_path)
-            except Exception as e:
-                error_msg = f"Could not open PDF: {e}"
-                self.st_log_message(error_msg)
-                messagebox.showerror("Error", error_msg)
+            self.st_log_message("Opening converted PDF...")
+            self._open_file(output_path)
         else:
             messagebox.showerror("Error", "Converted PDF not found.")
     
@@ -1118,11 +1472,7 @@ class WindowsStylePDFProcessor:
             # messagebox.showinfo("Success", "Labels generated successfully!")
             
             # Auto-open
-            try:
-                os.startfile(full_path)
-            except Exception:
-                import webbrowser
-                webbrowser.open(full_path)
+            self._open_file(full_path)
                 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to generate PDF: {e}")
@@ -1259,7 +1609,7 @@ class WindowsStylePDFProcessor:
         
         # Text widget
         self.log_text = tk.Text(text_frame, height=8, wrap=tk.WORD,
-                               font=('Consolas', 8),
+                               font=self.fonts['log'],
                                bg='white', fg='black',
                                relief='sunken', borderwidth=1,
                                padx=8, pady=8)
@@ -1743,7 +2093,10 @@ class WindowsStylePDFProcessor:
 
                     if page_num in label_dict:
                         insert_point = fitz.Point(5, 250)
-                        new_doc[-1].insert_text(insert_point, label_dict[page_num], 
+                        # Base14 fonts don't support the U+2192 arrow glyph (renders as
+                        # a garbled dot), so swap in a plain ASCII arrow before drawing.
+                        display_text = label_dict[page_num].replace('→', '>')
+                        new_doc[-1].insert_text(insert_point, display_text,
                                                fontname="Courier-Bold", fontsize=12, color=(0, 0, 0))
             
             self.log_message("Saving output file...")
@@ -1783,13 +2136,8 @@ class WindowsStylePDFProcessor:
     def open_converted_pdf(self):
         output_path = self.output_file_path.get()
         if output_path and os.path.exists(output_path):
-            try:
-                os.startfile(output_path)
-                self.log_message("Opening converted PDF...")
-            except Exception as e:
-                error_msg = f"Could not open PDF: {e}"
-                messagebox.showerror("Error", error_msg)
-                self.log_message(error_msg)
+            self.log_message("Opening converted PDF...")
+            self._open_file(output_path)
         else:
             error_msg = "Converted PDF not found."
             messagebox.showerror("Error", error_msg)
@@ -1814,7 +2162,17 @@ class WindowsStylePDFProcessor:
 
 def main():
     root = tk.Tk()
-    app = WindowsStylePDFProcessor(root)
+    try:
+        app = WindowsStylePDFProcessor(root)
+    except Exception as e:
+        import traceback
+        root.destroy()
+        print(f"ERROR: {e}", file=__import__('sys').stderr)
+        traceback.print_exc()
+        __import__('sys').exit(1)
+    root.lift()
+    root.attributes('-topmost', True)
+    root.after(50, lambda: root.attributes('-topmost', False))
     root.mainloop()
 
 if __name__ == "__main__":
