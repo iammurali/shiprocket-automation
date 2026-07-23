@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shiprocket Label Processor</title>
+  </head>
+  <body>
+    <div id="app">
+      <nav class="tabbar">
+        <button class="tab active" data-tab="shiprocket">Label Processor</button>
+        <button class="tab" data-tab="courier">Courier PDF Generator</button>
+        <button class="tab" data-tab="st">ST Courier Labels</button>
+        <button class="tab" data-tab="delhivery">Delhivery Direct</button>
+        <span class="tabbar-spacer"></span>
+        <button class="tab" data-tab="config" id="settings-btn" title="Configuration">⚙ Configuration</button>
+      </nav>
+
+      <!-- Tab 1: Shiprocket Label Processor -->
+      <section class="panel active" id="panel-shiprocket">
+        <h1>Shiprocket Label Processor</h1>
+        <div class="card">
+          <h2>File Selection</h2>
+          <div class="file-row">
+            <label>Input PDF</label>
+            <div class="file-input">
+              <input type="text" id="sr-input" readonly placeholder="Choose the label PDF to process…" />
+              <button class="btn" id="sr-browse-in">Browse…</button>
+            </div>
+          </div>
+          <div class="file-row">
+            <label>Output PDF</label>
+            <div class="file-input">
+              <input type="text" id="sr-output" readonly placeholder="Where to save the processed PDF" />
+              <button class="btn" id="sr-browse-out">Browse…</button>
+            </div>
+          </div>
+          <div class="file-row">
+            <label>Default Output Folder</label>
+            <div class="file-input">
+              <input type="text" id="sr-default-dir" readonly />
+              <button class="btn" id="sr-browse-dir">Browse Folder</button>
+            </div>
+          </div>
+        </div>
+        <div class="controls">
+          <label class="checkbox"><input type="checkbox" id="sr-4x4" /> 4×4 label (crop bottom 50mm)</label>
+          <button class="btn primary wide" id="sr-process">Process PDF</button>
+          <button class="btn" id="sr-open" disabled>Print PDF</button>
+          <button class="btn ghost" id="sr-clear">Clear All</button>
+        </div>
+        <div class="card">
+          <h2>Progress</h2>
+          <div class="status" id="sr-status">Ready to process</div>
+          <div class="progressbar"><div class="fill" id="sr-progress"></div></div>
+          <div class="progress-detail" id="sr-progress-detail"></div>
+        </div>
+        <div class="card">
+          <h2>Statistics</h2>
+          <div class="stats" id="sr-stats"><span class="muted">Statistics will appear here after processing</span></div>
+        </div>
+        <div class="card grow">
+          <h2>Processing Log</h2>
+          <pre class="log" id="sr-log"></pre>
+          <div class="log-controls">
+            <button class="btn ghost" id="sr-clear-log">Clear Log</button>
+            <button class="btn ghost" id="sr-save-log">Save Log</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab 2: Courier PDF Generator -->
+      <section class="panel" id="panel-courier">
+        <h1>Courier PDF Generator</h1>
+        <div class="card">
+          <h2>Add New Order</h2>
+          <div class="form-grid">
+            <label>Order ID</label>
+            <div class="inline">
+              <input type="text" id="c-order-id" />
+              <button class="btn" id="c-fetch">Fetch Info</button>
+            </div>
+            <label>Phone</label>
+            <input type="text" id="c-phone" />
+            <label>Items &amp; Qty</label>
+            <input type="text" id="c-items" />
+            <label>Address</label>
+            <textarea id="c-address" rows="4"></textarea>
+          </div>
+          <div class="controls">
+            <button class="btn primary" id="c-add">Add to Queue</button>
+          </div>
+        </div>
+        <div class="card grow">
+          <h2>Order Queue <span class="muted" id="c-queue-count"></span></h2>
+          <div class="table-wrap">
+            <table id="c-table">
+              <thead>
+                <tr><th class="check-col"><input type="checkbox" id="c-select-all" title="Select all" /></th><th>Order ID</th><th>Phone</th><th>Items</th><th>Address</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="controls">
+          <button class="btn danger" id="c-remove-selected" disabled>Remove Selected</button>
+          <button class="btn" id="c-shopify">Update Shopify</button>
+          <span class="spacer"></span>
+          <label class="checkbox"><input type="checkbox" id="c-4x4" /> 4×4 Label</label>
+          <button class="btn primary" id="c-generate">Generate Labels PDF</button>
+        </div>
+      </section>
+
+      <!-- Tab 3: ST Courier Labels -->
+      <section class="panel" id="panel-st">
+        <h1>ST Courier Label Processor</h1>
+        <div class="card">
+          <h2>File Selection</h2>
+          <div class="file-row">
+            <label>Input PDF</label>
+            <div class="file-input">
+              <input type="text" id="st-input" readonly placeholder="Choose the ST label PDF…" />
+              <button class="btn" id="st-browse-in">Browse…</button>
+            </div>
+          </div>
+          <div class="file-row">
+            <label>Output PDF</label>
+            <div class="file-input">
+              <input type="text" id="st-output" readonly />
+              <button class="btn" id="st-browse-out">Browse…</button>
+            </div>
+          </div>
+          <div class="file-row">
+            <label>Default Output Folder</label>
+            <div class="file-input">
+              <input type="text" id="st-default-dir" readonly />
+              <button class="btn" id="st-browse-dir">Browse Folder</button>
+            </div>
+          </div>
+        </div>
+        <div class="controls">
+          <button class="btn primary wide" id="st-process">Process PDF</button>
+          <button class="btn" id="st-open" disabled>Print PDF</button>
+        </div>
+        <div class="card">
+          <h2>Progress</h2>
+          <div class="status" id="st-status">Ready to process</div>
+          <div class="progressbar"><div class="fill" id="st-progress"></div></div>
+        </div>
+        <div class="card grow">
+          <h2>Log</h2>
+          <pre class="log" id="st-log"></pre>
+        </div>
+      </section>
+
+      <!-- Tab 4: Delhivery Direct -->
+      <section class="panel" id="panel-delhivery">
+        <h1>Delhivery Direct — Label Processor</h1>
+        <div class="card">
+          <h2>File Selection</h2>
+          <div class="file-row">
+            <label>Input PDF</label>
+            <div class="file-input">
+              <input type="text" id="dd-input" readonly placeholder="Choose the Delhivery label PDF…" />
+              <button class="btn" id="dd-browse-in">Browse…</button>
+            </div>
+          </div>
+          <div class="file-row">
+            <label>Output PDF</label>
+            <div class="file-input">
+              <input type="text" id="dd-output" readonly />
+              <button class="btn" id="dd-browse-out">Browse…</button>
+            </div>
+          </div>
+          <div class="file-row">
+            <label>Default Output Folder</label>
+            <div class="file-input">
+              <input type="text" id="dd-default-dir" readonly />
+              <button class="btn" id="dd-browse-dir">Browse Folder</button>
+            </div>
+          </div>
+        </div>
+        <div class="controls">
+          <button class="btn primary wide" id="dd-process">Process PDF</button>
+          <button class="btn" id="dd-open" disabled>Print PDF</button>
+          <button class="btn ghost" id="dd-clear">Clear All</button>
+        </div>
+        <div class="card">
+          <h2>Progress</h2>
+          <div class="status" id="dd-status">Ready to process</div>
+          <div class="progressbar"><div class="fill" id="dd-progress"></div></div>
+        </div>
+        <div class="card grow">
+          <h2>Log</h2>
+          <pre class="log" id="dd-log"></pre>
+        </div>
+      </section>
+
+      <!-- Tab 5: Configuration -->
+      <section class="panel" id="panel-config">
+        <h1>Configuration</h1>
+        <p class="muted config-intro">Products, label rules and credentials live here — when a label
+        format changes or a new product launches, update it below instead of changing code.
+        Changes apply from the next processing run.</p>
+
+        <div class="card">
+          <h2>Products</h2>
+          <p class="muted small-note">Order matters: it defines the sort/grouping priority.
+          Keywords are comma-separated and case-insensitive — a label line matches the first
+          product containing any of its keywords (more specific products are matched before
+          broader ones automatically). SKUs map Shiprocket barcode SKUs to the product.</p>
+          <div class="table-wrap">
+            <table id="cfg-products">
+              <thead>
+                <tr><th>Name</th><th>Stamp label</th><th>Canonical name</th><th>Keywords</th><th>SKUs</th><th>Stats</th><th></th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="controls" style="margin-top:10px">
+            <button class="btn" id="cfg-add-product">+ Add Product</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Label Processor (Shiprocket)</h2>
+          <div class="cfg-grid" id="cfg-sr">
+            <label>Stamp X <input type="number" step="0.5" id="cfg-sr-x" /></label>
+            <label>Stamp Y (from top) <input type="number" step="0.5" id="cfg-sr-y" /></label>
+            <label>Stamp size <input type="number" step="0.5" id="cfg-sr-size" /></label>
+            <label>Stamp color <input type="color" id="cfg-sr-color" /></label>
+            <label>4×4 crop (mm) <input type="number" step="1" id="cfg-sr-crop" /></label>
+            <label>Group up to qty <input type="number" step="1" min="1" id="cfg-sr-maxqty" /></label>
+            <label class="checkbox wide-2"><input type="checkbox" id="cfg-sr-skiplast" /> Don't crop the last page</label>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>ST Courier</h2>
+          <div class="cfg-grid">
+            <label>Line must contain <input type="text" id="cfg-st-filter" /></label>
+            <label>Phone line pattern <input type="text" id="cfg-st-phone" class="mono" /></label>
+            <label>Phone note text <input type="text" id="cfg-st-note" /></label>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Delhivery Direct</h2>
+          <div class="cfg-grid">
+            <label>Line starts with <input type="text" id="cfg-dd-filter" /></label>
+            <label>Skip lines containing <input type="text" id="cfg-dd-skipc" placeholder="comma-separated" /></label>
+            <label>Skip line prefixes <input type="text" id="cfg-dd-skipp" placeholder="comma-separated" /></label>
+            <label>Qty scan lines <input type="number" step="1" min="1" id="cfg-dd-scan" /></label>
+            <label>Stamp X <input type="number" step="0.5" id="cfg-dd-x" /></label>
+            <label>Stamp from bottom <input type="number" step="0.5" id="cfg-dd-bottom" /></label>
+            <label>Stamp size <input type="number" step="0.5" id="cfg-dd-size" /></label>
+            <label>Stamp color <input type="color" id="cfg-dd-color" /></label>
+            <label>Phone line pattern <input type="text" id="cfg-dd-phone" class="mono" /></label>
+            <label>Phone note text <input type="text" id="cfg-dd-note" /></label>
+            <label class="wide-2">Qty patterns (one regex per line, first capture group = qty)
+              <textarea id="cfg-dd-qty" rows="4" class="mono"></textarea>
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Courier Label (manual labels)</h2>
+          <div class="cfg-grid">
+            <label>Brand name <input type="text" id="cfg-c-brand" /></label>
+            <label>Title color <input type="color" id="cfg-c-color" /></label>
+            <label class="wide-2">From address (4×6)
+              <textarea id="cfg-c-from" rows="6"></textarea>
+            </label>
+            <label class="wide-2">From address (4×4, compact)
+              <textarea id="cfg-c-from4" rows="4"></textarea>
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Credentials</h2>
+          <div class="cfg-grid">
+            <label>Shiprocket email <input type="text" id="set-email" autocomplete="off" /></label>
+            <label>Shiprocket password <input type="password" id="set-password" autocomplete="off" /></label>
+            <label>Shopify store URL <input type="text" id="set-shopify-url" placeholder="my-store.myshopify.com" autocomplete="off" /></label>
+            <label>Shopify access token <input type="password" id="set-shopify-token" autocomplete="off" /></label>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="btn primary" id="cfg-save">Save Configuration</button>
+          <button class="btn" id="cfg-reload">Discard Changes</button>
+          <span class="spacer"></span>
+          <button class="btn danger" id="cfg-reset">Reset rules to defaults</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

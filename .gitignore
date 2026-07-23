@@ -40,3 +40,6 @@ credentials.json
 token.json
 secrets.json
 config.json
+# Tauri port working artifacts
+reference_extraction/
+verify_out/
